@@ -279,6 +279,21 @@ async function loadGmailStatus() {
       return;
     }
 
+    if (s.mode === "apps-script") {
+      connect.style.display = "none";
+      disconnect.style.display = "none";
+      sync.disabled = false;
+      sync.textContent = "Load latest Gmail sync";
+      if (s.connected) {
+        side.innerHTML = '<span class="dot connected"></span> Gmail sync active';
+        txt.textContent = "Apps Script connected · " + (s.lastSync ? "last sync " + new Date(s.lastSync).toLocaleString() : "");
+      } else {
+        side.innerHTML = '<span class="dot"></span> Gmail sync ready';
+        txt.textContent = "Apps Script ready · run the script once";
+      }
+      return;
+    }
+
     if (s.connected) {
       side.innerHTML = '<span class="dot connected"></span> Gmail connected';
       txt.textContent = "Connected: " + (s.email || "Gmail");
@@ -341,7 +356,7 @@ async function runGmailSync() {
     result.textContent = "Sync error: " + e.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = "Sync last 180 days";
+    btn.textContent = "Load latest Gmail sync";
   }
 }
 

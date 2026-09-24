@@ -312,10 +312,10 @@ app.post("/api/apps-script-sync", (req, res) => {
 
     const payments = [];
     for (const m of raw) {
-      const hay = ((m.subject || "") + " " + (m.body || "")).toLowerCase();
-      const looksPayment = /interac|e-transfer|etransfer|money transfer|deposit|payment received|sent you money/.test(hay);
-      if (!looksPayment) continue;
-      const amount = amountFromText((m.subject || "") + " " + (m.body || ""));
+      const subject = String(m.subject || "");
+      const isInteracDeposit = /^Interac e-Transfer:\s*You've received\b/i.test(subject);
+      if (!isInteracDeposit) continue;
+      const amount = amountFromText(subject + " " + (m.body || ""));
       if (!amount) continue;
       payments.push({
         messageId: m.id || "",

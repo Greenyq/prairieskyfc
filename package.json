@@ -1,12 +1,11 @@
 {
   "name": "prairieskyfc-manager",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "scripts": { "start": "node server.js" },
   "dependencies": {
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "googleapis": "^144.0.0"
   }
 }

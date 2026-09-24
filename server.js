@@ -6,6 +6,8 @@ const app = express();
 const port = process.env.PORT || 10000;
 const APP_URL = process.env.APP_URL || "https://prairie-sky-manager.onrender.com";
 const TOKEN_FILE = "/tmp/psfc-gmail-token.json";
+const APPS_SCRIPT_SYNC_SECRET = process.env.APPS_SCRIPT_SYNC_SECRET || "";
+let latestSync = { ok: true, scanned: 0, leads: [], payments: [], syncedAt: null, source: "apps-script" };
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static("public"));
@@ -126,6 +128,15 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.get("/api/gmail/status", async (_req, res) => {
+  if (APPS_SCRIPT_SYNC_SECRET) {
+    return res.json({
+      configured: true,
+      connected: Boolean(latestSync.syncedAt),
+      mode: "apps-script",
+      email: "info@prairieskyfc.ca",
+      lastSync: latestSync.syncedAt
+    });
+  }
   const tokens = loadTokens();
   if (!oauthConfigured()) {
     return res.json({ configured: false, connected: false, reason: "Missing Google OAuth environment variables" });
@@ -173,6 +184,9 @@ app.post("/api/gmail/disconnect", (_req, res) => {
 });
 
 app.post("/api/gmail/sync", async (req, res) => {
+  if (APPS_SCRIPT_SYNC_SECRET) {
+    return res.json(latestSync);
+  }
   try {
     const tokens = loadTokens();
     if (!oauthConfigured()) return res.status(503).json({ error: "Google OAuth is not configured." });
@@ -275,6 +289,105 @@ app.post("/api/gmail/sync", async (req, res) => {
       leads,
       payments,
       rules: { "150": 1, "300": 2 }
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+app.post("/api/apps-script-sync", (req, res) => {
+  try {
+    if (!APPS_SCRIPT_SYNC_SECRET) {
+      return res.status(503).json({ error: "Apps Script sync is not configured." });
+    }
+    const provided = String(req.body?.secret || "");
+    if (provided !== APPS_SCRIPT_SYNC_SECRET) {
+      return res.status(401).json({ error: "Invalid sync secret." });
+    }
+
+    const raw = Array.isArray(req.body?.messages) ? req.body.messages : [];
+    const clubEmail = "info@prairieskyfc.ca";
+
+    const payments = [];
+    for (const m of raw) {
+      const hay = ((m.subject || "") + " " + (m.body || "")).toLowerCase();
+      const looksPayment = /interac|e-transfer|etransfer|money transfer|deposit|payment received|sent you money/.test(hay);
+      if (!looksPayment) continue;
+      const amount = amountFromText((m.subject || "") + " " + (m.body || ""));
+      if (!amount) continue;
+      payments.push({
+        messageId: m.id || "",
+        date: new Date(Number(m.ts || Date.now())).toISOString().slice(0,10),
+        payer: m.fromName || m.fromEmail || "Unknown payer",
+        payerEmail: m.fromEmail || "",
+        amount,
+        playersCovered: playersCovered(amount),
+        confidence: amount === 150 || amount === 300 ? "high" : "review",
+        subject: m.subject || ""
+      });
+    }
+
+    const byThread = new Map();
+    for (const m of raw) {
+      const tid = m.threadId || m.id || crypto.randomUUID();
+      if (!byThread.has(tid)) byThread.set(tid, []);
+      byThread.get(tid).push(m);
+    }
+
+    const leads = [];
+    for (const [threadId, msgs] of byThread.entries()) {
+      const external = msgs.filter(m => m.fromEmail && String(m.fromEmail).toLowerCase() !== clubEmail);
+      if (!external.length) continue;
+
+      const combined = msgs.map(m => (m.subject || "") + " " + (m.body || "")).join(" ");
+      const relevant = /soccer|football|academy|training|practice|trial|tryout|son|daughter|player|age|born|register/.test(combined.toLowerCase());
+      if (!relevant) continue;
+
+      const latestExternal = external.slice().sort((a,b)=>Number(b.ts||0)-Number(a.ts||0))[0];
+      const birthYear = inferBirthYear(combined);
+      const childName = inferChildName(combined);
+      const status = inferStatus(msgs.map(m => ({
+        subject: m.subject || "",
+        body: m.body || "",
+        fromEmail: String(m.fromEmail || "").toLowerCase(),
+        ts: Number(m.ts || 0)
+      })), clubEmail);
+      const last = msgs.slice().sort((a,b)=>Number(b.ts||0)-Number(a.ts||0))[0];
+
+      leads.push({
+        threadId,
+        playerName: childName || "Unknown player",
+        birthYear,
+        parent: latestExternal.fromName || latestExternal.fromEmail || "Unknown parent",
+        email: latestExternal.fromEmail || "",
+        status,
+        lastContact: new Date(Number(last.ts || Date.now())).toISOString().slice(0,10),
+        subject: last.subject || "",
+        needsReview: !childName || !birthYear
+      });
+    }
+
+    leads.sort((a,b)=>String(b.lastContact).localeCompare(String(a.lastContact)));
+    payments.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+
+    latestSync = {
+      ok: true,
+      scanned: raw.length,
+      leads,
+      payments,
+      syncedAt: new Date().toISOString(),
+      source: "apps-script",
+      rules: { "150": 1, "300": 2 }
+    };
+
+    return res.json({
+      ok: true,
+      scanned: latestSync.scanned,
+      leads: latestSync.leads.length,
+      payments: latestSync.payments.length,
+      syncedAt: latestSync.syncedAt
     });
   } catch (e) {
     console.error(e);

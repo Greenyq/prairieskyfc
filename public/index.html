@@ -1,16 +1,128 @@
-<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Prairie Sky Manager</title><link rel="stylesheet" href="/styles.css"/></head><body>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Prairie Sky FC Manager</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body>
 <div class="shell">
-<aside><div class="brand"><div class="ball">⚽</div><div><b>Prairie Sky FC</b><span>AI Manager</span></div></div>
-<nav><button class="active">Dashboard</button><button>Players</button><button>Trials & Leads</button><button>Payments</button><button>Groups</button><button>Inbox Intelligence</button></nav>
-<div class="sync"><span class="dot"></span> Gmail sync: planned</div></aside>
-<main><header><div><h1>Club Dashboard</h1><p>Your internal academy cockpit</p></div><button class="primary">Sync Email</button></header>
-<section class="cards" id="cards"></section>
-<section class="grid">
-<div class="panel"><div class="panel-head"><h2>Player pipeline</h2><span>October</span></div><div class="pipeline">
-<div><strong>Invited</strong><span>—</span></div><div><strong>Trial booked</strong><span>1</span></div><div><strong>Attended</strong><span>—</span></div><div><strong>Joined</strong><span>—</span></div></div></div>
-<div class="panel"><div class="panel-head"><h2>Groups</h2><span>Current</span></div><div class="groups">
-<div><b>Foundation</b><span>Track roster</span></div><div><b>Performance</b><span>Track roster</span></div><div><b>Girls</b><span>Planned</span></div></div></div>
-</section>
-<section class="panel"><div class="panel-head"><h2>Attention needed</h2><span>AI suggestions</span></div>
-<div class="empty"><b>Nothing urgent yet.</b><p>When Gmail sync is connected, this area will show unpaid players, unanswered leads, trial follow-ups and missing player details.</p></div></section>
-</main></div><script src="/app.js"></script></body></html>
+  <aside>
+    <div class="brand">
+      <div class="logo-mark">PS</div>
+      <div><b>Prairie Sky FC</b><span>AI Manager</span></div>
+    </div>
+    <nav>
+      <button class="nav active" data-view="dashboard">Dashboard</button>
+      <button class="nav" data-view="players">Players</button>
+      <button class="nav" data-view="leads">Trials & Leads</button>
+      <button class="nav" data-view="payments">Payments</button>
+    </nav>
+    <div class="sync"><span class="dot"></span> Gmail integration: next step</div>
+  </aside>
+
+  <main>
+    <header>
+      <div><h1 id="pageTitle">Club Dashboard</h1><p id="pageSub">Your internal academy cockpit</p></div>
+      <button class="primary" id="addPlayerBtn">+ Add player</button>
+    </header>
+
+    <section id="dashboardView" class="view active">
+      <section class="cards" id="cards"></section>
+      <section class="grid">
+        <div class="panel">
+          <div class="panel-head"><h2>Player pipeline</h2><span>Live from player records</span></div>
+          <div class="pipeline" id="pipeline"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Groups</h2><span>Current roster</span></div>
+          <div class="groups" id="groupSummary"></div>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Attention needed</h2><span>Follow-ups</span></div>
+        <div id="attention"></div>
+      </section>
+    </section>
+
+    <section id="playersView" class="view">
+      <div class="toolbar">
+        <input id="playerSearch" placeholder="Search player, parent or email"/>
+        <select id="groupFilter">
+          <option value="">All groups</option>
+          <option>Foundation</option>
+          <option>Performance</option>
+          <option>Girls</option>
+          <option>Unassigned</option>
+        </select>
+      </div>
+      <div class="panel table-wrap">
+        <table>
+          <thead><tr><th>Player</th><th>Age / year</th><th>Parent</th><th>Group</th><th>Status</th><th>October</th><th>Payment</th><th></th></tr></thead>
+          <tbody id="playersTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="leadsView" class="view">
+      <div class="panel table-wrap">
+        <table>
+          <thead><tr><th>Player</th><th>Parent</th><th>Stage</th><th>Trial</th><th>Last contact</th><th>Needs action</th></tr></thead>
+          <tbody id="leadsTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="paymentsView" class="view">
+      <div class="grid payments-grid">
+        <div class="panel">
+          <div class="panel-head"><h2>Add payment</h2><span>Manual MVP</span></div>
+          <form id="paymentForm" class="form">
+            <label>Parent / payer<input id="payer" required placeholder="e.g. Kelly"/></label>
+            <label>Amount (CAD)<input id="amount" required type="number" min="1" step="1" placeholder="150"/></label>
+            <label>Month<select id="paymentMonth"><option>October</option><option>November</option><option>December</option></select></label>
+            <button class="primary" type="submit">Record payment</button>
+          </form>
+          <div class="rule-note"><b>Payment rule:</b> $150 = 1 player, $300 = 2 players. A $300 Interac payment counts as two paid player spots.</div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>October collection</h2><span>Based on records</span></div>
+          <div class="money" id="paymentSummary"></div>
+        </div>
+      </div>
+
+      <div class="panel table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Payer</th><th>Amount</th><th>Players covered</th><th>Month</th></tr></thead>
+          <tbody id="paymentsTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="modal" id="playerModal">
+  <div class="modal-card">
+    <div class="modal-head"><h2 id="modalTitle">Add player</h2><button type="button" id="closeModal">×</button></div>
+    <form id="playerForm" class="form two-col">
+      <input type="hidden" id="editId"/>
+      <label>Player name<input id="playerName" required/></label>
+      <label>Birth year<input id="birthYear" type="number" min="2008" max="2022"/></label>
+      <label>Parent name<input id="parentName"/></label>
+      <label>Parent email<input id="parentEmail" type="email"/></label>
+      <label>Group<select id="playerGroup"><option>Unassigned</option><option>Foundation</option><option>Performance</option><option>Girls</option></select></label>
+      <label>Status<select id="playerStatus"><option>Lead</option><option>Invited</option><option>Trial booked</option><option>Trial attended</option><option>Joined</option><option>No response</option><option>Declined</option></select></label>
+      <label>Trial date<input id="trialDate" type="date"/></label>
+      <label>October<select id="octoberStatus"><option>Pending</option><option>Trial</option><option>Joined</option><option>Not joining</option></select></label>
+      <label>Monthly fee<input id="monthlyFee" type="number" value="150"/></label>
+      <label>Payment<select id="paymentStatus"><option>Unpaid</option><option>Paid</option><option>Not due</option></select></label>
+      <label class="full">Notes<textarea id="notes" rows="3"></textarea></label>
+      <div class="full actions"><button type="button" class="secondary" id="cancelModal">Cancel</button><button class="primary" type="submit">Save player</button></div>
+    </form>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -196,7 +196,8 @@ document.addEventListener("click", function(e){
       dashboard:["Club Dashboard","Your internal academy cockpit"],
       players:["Players","Roster, groups and payment status"],
       leads:["Trials & Leads","Who was invited, who replied and who needs follow-up"],
-      payments:["Payments","Track monthly collection and family payments"],\n      gmail:["Inbox Intelligence","Sync leads, replies and Interac payments from Gmail"]
+      payments:["Payments","Track monthly collection and family payments"],
+      gmail:["Inbox Intelligence","Sync leads, replies and Interac payments from Gmail"]
     };
     $("#pageTitle").textContent = titles[nav.dataset.view][0];
     $("#pageSub").textContent = titles[nav.dataset.view][1];

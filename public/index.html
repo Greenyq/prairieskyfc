@@ -18,6 +18,7 @@
       <button class="nav" data-view="players">Players</button>
       <button class="nav" data-view="leads">Trials & Leads</button>
       <button class="nav" data-view="payments">Payments</button>
+      <button class="nav" data-view="history">Financial History</button>
       <button class="nav" data-view="gmail">Inbox Intelligence</button>
     </nav>
     <div class="sync" id="gmailSidebarStatus"><span class="dot"></span> Checking Gmail…</div>
@@ -72,6 +73,41 @@
           <thead><tr><th>Player</th><th>Parent</th><th>Stage</th><th>Trial</th><th>Last contact</th><th>Needs action</th></tr></thead>
           <tbody id="leadsTable"></tbody>
         </table>
+      </div>
+    </section>
+
+    <section id="historyView" class="view">
+      <div class="panel import-panel">
+        <div>
+          <div class="panel-head"><h2>Import Prairie Sky Money.xlsx</h2><span>Runs only in your browser</span></div>
+          <p class="muted">Imports monthly income and expenses from your old workbook. The spreadsheet itself is not uploaded to GitHub.</p>
+          <div class="gmail-actions">
+            <label class="primary file-btn">Choose Excel file<input id="historyFile" type="file" accept=".xlsx,.xls"/></label>
+            <button class="secondary" id="clearHistory" type="button">Clear imported history</button>
+          </div>
+          <div class="sync-result" id="historyImportResult"></div>
+        </div>
+      </div>
+
+      <section class="cards history-cards" id="historyCards"></section>
+
+      <div class="panel table-wrap">
+        <div class="panel-head padded"><h2>Monthly history</h2><span>Income · expenses · net</span></div>
+        <table>
+          <thead><tr><th>Month</th><th>Income</th><th>Payments</th><th>Expenses</th><th>Net</th></tr></thead>
+          <tbody id="historyTable"></tbody>
+        </table>
+      </div>
+
+      <div class="grid history-detail-grid">
+        <div class="panel table-wrap">
+          <div class="panel-head padded"><h2>Imported payments</h2><span>Historical workbook</span></div>
+          <table><thead><tr><th>Month</th><th>Payer</th><th>Type</th><th>Amount</th></tr></thead><tbody id="historyPaymentsTable"></tbody></table>
+        </div>
+        <div class="panel table-wrap">
+          <div class="panel-head padded"><h2>Imported expenses</h2><span>Historical workbook</span></div>
+          <table><thead><tr><th>Month</th><th>Expense</th><th>Amount</th></tr></thead><tbody id="historyExpensesTable"></tbody></table>
+        </div>
       </div>
     </section>
 
@@ -143,6 +179,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

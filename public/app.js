@@ -347,6 +347,7 @@ function importHistoricalWorkbook(file) {
       const workbook = XLSX.read(evt.target.result, {type:"array"});
       let addedPayments = 0;
       let addedExpenses = 0;
+      let addedPlayers = 0;
 
       workbook.SheetNames.forEach(sheetName => {
         const period = parseSheetMonthYear(sheetName);
@@ -361,6 +362,8 @@ function importHistoricalWorkbook(file) {
           const type = String(row[1] || "").trim();
           const income = Number(row[2]);
           if (payer && payer.toLowerCase() !== "total" && Number.isFinite(income) && income > 0) {
+            const inferredPlayer = playerNameFromWorkbookName(payer);
+            if (addHistoricalPlayer(inferredPlayer, payer, sheetName + ":player:" + idx)) addedPlayers++;
             const duplicate = payments.some(p =>
               historySortKey(p) === period.year * 100 + ["January","February","March","April","May","June","July","August","September","October","November","December"].indexOf(period.month)+1 &&
               normalizeName(p.payer) === normalizeName(payer) &&
@@ -381,6 +384,11 @@ function importHistoricalWorkbook(file) {
               });
               addedPayments++;
             }
+          }
+
+          const listedPlayer = String(row[12] || "").trim();
+          if (listedPlayer && listedPlayer.toLowerCase() !== "name") {
+            if (addHistoricalPlayer(listedPlayer, "", sheetName + ":listed-player:" + idx)) addedPlayers++;
           }
 
           const expenseName = String(row[5] || "").trim();
@@ -404,7 +412,7 @@ function importHistoricalWorkbook(file) {
       });
 
       save();
-      result.textContent = "Imported " + addedPayments + " payments and " + addedExpenses + " expenses. Existing matching records were skipped.";
+      result.textContent = "Imported " + addedPlayers + " players, " + addedPayments + " payments and " + addedExpenses + " expenses. Existing matching records were skipped.";
     } catch (e) {
       result.textContent = "Import failed: " + e.message;
     }

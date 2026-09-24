@@ -279,6 +279,62 @@ function normalizeName(v) {
   return String(v || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function playerNameFromWorkbookName(v) {
+  const raw = String(v || "").trim();
+  if (!raw) return "";
+  const paren = raw.match(/\(([^)]+)\)/);
+  if (paren && paren[1].trim()) return paren[1].trim();
+  return raw;
+}
+
+function addHistoricalPlayer(name, parentLabel, sourceKey) {
+  const playerName = String(name || "").trim();
+  if (!playerName) return false;
+  const exists = players.some(function(p){ return normalizeName(p.name) === normalizeName(playerName); });
+  if (exists) return false;
+  players.push({
+    id: crypto.randomUUID(),
+    name: playerName,
+    birthYear: "",
+    parent: parentLabel && normalizeName(parentLabel) !== normalizeName(playerName) ? parentLabel : "",
+    email: "",
+    group: "Unassigned",
+    status: "Joined",
+    trialDate: "",
+    october: "Pending",
+    fee: 150,
+    payment: "Not due",
+    notes: "Imported from Prairie Sky Money.xlsx",
+    lastContact: "",
+    source: "history",
+    sourceKey: sourceKey
+  });
+  return true;
+}
+
+function renderExpenses() {
+  if (!$("#expensesTable")) return;
+  const filter = $("#expenseMonthFilter");
+  const periods = Array.from(new Set(expenses.map(function(e){ return historyMonthLabel(e); }))).filter(Boolean);
+  periods.sort(function(a,b){
+    const ea = expenses.find(function(e){ return historyMonthLabel(e) === a; }) || {};
+    const eb = expenses.find(function(e){ return historyMonthLabel(e) === b; }) || {};
+    return historySortKey(eb) - historySortKey(ea);
+  });
+  const current = filter.value || "All";
+  filter.innerHTML = '<option value="All">All months</option>' + periods.map(function(p){ return '<option value="'+esc(p)+'">'+esc(p)+'</option>'; }).join("");
+  filter.value = periods.includes(current) ? current : "All";
+
+  const shown = expenses.filter(function(e){ return filter.value === "All" || historyMonthLabel(e) === filter.value; })
+    .slice().sort(function(a,b){ return historySortKey(b)-historySortKey(a); });
+
+  const total = shown.reduce(function(s,e){ return s + Number(e.amount || 0); }, 0);
+  $("#expenseSummary").innerHTML = money(total) + '<small>' + shown.length + ' expense record' + (shown.length===1?'':'s') + '</small>';
+  $("#expensesTable").innerHTML = shown.map(function(e){
+    return '<tr><td>'+esc(e.date || historyMonthLabel(e))+'</td><td>'+esc(e.name)+'</td><td>'+money(e.amount)+'</td><td>'+esc(e.source === "history" ? "Workbook" : "Manual")+'</td></tr>';
+  }).join("") || '<tr><td colspan="4" class="empty">No expenses yet.</td></tr>';
+}
+
 function importHistoricalWorkbook(file) {
   const result = $("#historyImportResult");
   if (!window.XLSX) {

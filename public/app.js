@@ -257,3 +257,160 @@ $("#paymentForm").onsubmit = function(e){
 };
 
 renderAll();
+
+
+async function loadGmailStatus() {
+  try {
+    const r = await fetch("/api/gmail/status");
+    const s = await r.json();
+    const side = $("#gmailSidebarStatus");
+    const txt = $("#gmailStatusText");
+    const connect = $("#connectGmail");
+    const sync = $("#syncGmail");
+    const disconnect = $("#disconnectGmail");
+
+    if (!s.configured) {
+      side.innerHTML = '<span class="dot"></span> Gmail: setup required';
+      txt.textContent = "Google OAuth not configured";
+      connect.style.display = "none";
+      sync.disabled = true;
+      disconnect.style.display = "none";
+      return;
+    }
+
+    if (s.connected) {
+      side.innerHTML = '<span class="dot connected"></span> Gmail connected';
+      txt.textContent = "Connected: " + (s.email || "Gmail");
+      connect.style.display = "none";
+      sync.disabled = false;
+      disconnect.style.display = "inline-block";
+    } else {
+      side.innerHTML = '<span class="dot"></span> Gmail not connected';
+      txt.textContent = "Ready to connect";
+      connect.style.display = "inline-block";
+      sync.disabled = true;
+      disconnect.style.display = "none";
+    }
+  } catch (e) {
+    $("#gmailStatusText").textContent = "Status check failed";
+  }
+}
+
+function renderGmailLeads(items) {
+  $("#gmailLeads").innerHTML = (items || []).map(function(x, i){
+    return '<tr><td><b>' + esc(x.playerName) + '</b></td><td>' + esc(x.birthYear || "—") + '</td><td>' +
+      esc(x.parent) + '<div class="muted small">' + esc(x.email) + '</div></td><td>' + badge(x.status) +
+      '</td><td>' + esc(x.lastContact) + '</td><td>' + esc(x.subject || "") +
+      '</td><td><button class="icon-btn import-lead" data-i="' + i + '">Add</button></td></tr>';
+  }).join("") || '<tr><td colspan="7" class="empty">Run Gmail sync to detect leads.</td></tr>';
+}
+
+function renderGmailPayments(items) {
+  $("#gmailPayments").innerHTML = (items || []).map(function(x, i){
+    return '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.payer) + '</td><td>$' +
+      Number(x.amount).toFixed(0) + '</td><td><b>' + x.playersCovered + '</b></td><td>' +
+      esc(x.confidence) + '</td><td>' + esc(x.subject || "") +
+      '</td><td><button class="icon-btn import-payment" data-i="' + i + '">Add</button></td></tr>';
+  }).join("") || '<tr><td colspan="7" class="empty">Run Gmail sync to detect payments.</td></tr>';
+}
+
+let lastGmailSync = { leads: [], payments: [] };
+
+async function runGmailSync() {
+  const btn = $("#syncGmail");
+  const result = $("#syncResult");
+  btn.disabled = true;
+  btn.textContent = "Syncing…";
+  result.textContent = "Reading Gmail. This can take a little while.";
+
+  try {
+    const r = await fetch("/api/gmail/sync", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ max: 250 })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Sync failed");
+    lastGmailSync = data;
+    renderGmailLeads(data.leads);
+    renderGmailPayments(data.payments);
+    result.textContent = "Scanned " + data.scanned + " emails · " + data.leads.length +
+      " lead threads · " + data.payments.length + " payment emails";
+  } catch (e) {
+    result.textContent = "Sync error: " + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Sync last 180 days";
+  }
+}
+
+$("#syncGmail").onclick = runGmailSync;
+$("#disconnectGmail").onclick = async function(){
+  await fetch("/api/gmail/disconnect", {method:"POST"});
+  await loadGmailStatus();
+};
+
+renderGmailLeads([]);
+renderGmailPayments([]);
+
+document.addEventListener("click", function(e){
+  const leadBtn = e.target.closest(".import-lead");
+  if (leadBtn) {
+    const x = lastGmailSync.leads[Number(leadBtn.dataset.i)];
+    if (!x) return;
+    const exists = players.find(function(p){
+      return p.email && p.email.toLowerCase() === String(x.email).toLowerCase();
+    });
+
+    if (!exists) {
+      players.push({
+        id: crypto.randomUUID(),
+        name: x.playerName,
+        birthYear: x.birthYear || "",
+        parent: x.parent || "",
+        email: x.email || "",
+        group: "Unassigned",
+        status: x.status === "Waiting reply" ? "No response" : x.status,
+        trialDate: "",
+        october: /trial/i.test(x.status) ? "Trial" : (x.status === "Joined" ? "Joined" : "Pending"),
+        fee: 150,
+        payment: x.status === "Joined" ? "Unpaid" : "Not due",
+        notes: "Imported from Gmail: " + (x.subject || ""),
+        lastContact: x.lastContact || new Date().toISOString().slice(0,10)
+      });
+      save();
+      leadBtn.textContent = "Added";
+      leadBtn.disabled = true;
+    } else {
+      leadBtn.textContent = "Exists";
+      leadBtn.disabled = true;
+    }
+  }
+
+  const payBtn = e.target.closest(".import-payment");
+  if (payBtn) {
+    const x = lastGmailSync.payments[Number(payBtn.dataset.i)];
+    if (!x) return;
+    const exists = payments.find(function(p){ return p.messageId === x.messageId; });
+
+    if (!exists) {
+      payments.push({
+        id: crypto.randomUUID(),
+        messageId: x.messageId,
+        date: x.date,
+        payer: x.payer,
+        amount: x.amount,
+        playersCovered: x.playersCovered,
+        month: "October"
+      });
+      save();
+      payBtn.textContent = "Added";
+      payBtn.disabled = true;
+    } else {
+      payBtn.textContent = "Exists";
+      payBtn.disabled = true;
+    }
+  }
+});
+
+loadGmailStatus();

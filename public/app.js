@@ -38,6 +38,29 @@ const seedPlayers = [
 let players = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || seedPlayers;
 let payments = JSON.parse(localStorage.getItem(PAYMENTS_KEY) || "null") || [];
 
+function monthFromDate(dateString) {
+  if (!dateString) return "Unknown";
+  const d = new Date(dateString + "T12:00:00");
+  if (Number.isNaN(d.getTime())) return "Unknown";
+  return d.toLocaleString("en-US", { month: "long" });
+}
+
+// Migrate Gmail-imported payments that were previously hard-coded as October.
+let migratedPaymentMonths = false;
+payments = payments.map(function(p) {
+  if (p.messageId && p.date) {
+    const correctMonth = monthFromDate(p.date);
+    if (correctMonth !== "Unknown" && p.month !== correctMonth) {
+      migratedPaymentMonths = true;
+      return { ...p, month: correctMonth };
+    }
+  }
+  return p;
+});
+if (migratedPaymentMonths) {
+  localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
+}
+
 function $(s) { return document.querySelector(s); }
 
 function esc(v) {
@@ -417,7 +440,7 @@ document.addEventListener("click", function(e){
         payer: x.payer,
         amount: x.amount,
         playersCovered: x.playersCovered,
-        month: "October"
+        month: monthFromDate(x.date)
       });
       save();
       payBtn.textContent = "Added";

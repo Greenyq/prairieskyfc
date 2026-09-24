@@ -17,7 +17,8 @@
       <button class="nav active" data-view="dashboard">Dashboard</button>
       <button class="nav" data-view="players">Players</button>
       <button class="nav" data-view="leads">Trials & Leads</button>
-      <button class="nav" data-view="payments">Payments</button>\n      <button class="nav" data-view="gmail">Inbox Intelligence</button>
+      <button class="nav" data-view="payments">Payments</button>
+      <button class="nav" data-view="gmail">Inbox Intelligence</button>
     </nav>
     <div class="sync" id="gmailSidebarStatus"><span class="dot"></span> Checking Gmail…</div>
   </aside>
@@ -74,7 +75,26 @@
       </div>
     </section>
 
-    <section id="gmailView" class="view">\n      <div class="panel gmail-hero">\n        <div>\n          <div class="panel-head"><h2>Gmail Sync</h2><span id="gmailStatusText">Checking connection…</span></div>\n          <p class="muted">Reads info@prairieskyfc.ca, finds player leads, trial replies and Interac payments. Nothing is sent or deleted.</p>\n          <div class="gmail-actions"><a class="primary link-btn" id="connectGmail" href="/auth/google">Connect Gmail</a><button class="primary" id="syncGmail" type="button">Sync last 180 days</button><button class="secondary" id="disconnectGmail" type="button">Disconnect</button></div>\n          <div class="sync-result" id="syncResult"></div>\n        </div>\n      </div>\n      <div class="panel table-wrap gmail-section">\n        <div class="panel-head padded"><h2>Detected leads</h2><span>Review before adding</span></div>\n        <table><thead><tr><th>Player</th><th>Birth year</th><th>Parent</th><th>Status</th><th>Last contact</th><th>Subject</th><th></th></tr></thead><tbody id="gmailLeads"></tbody></table>\n      </div>\n      <div class="panel table-wrap gmail-section">\n        <div class="panel-head padded"><h2>Detected payments</h2><span>$300 = 2 players</span></div>\n        <table><thead><tr><th>Date</th><th>Payer</th><th>Amount</th><th>Players covered</th><th>Confidence</th><th>Subject</th><th></th></tr></thead><tbody id="gmailPayments"></tbody></table>\n      </div>\n    </section>\n\n    <section id="paymentsView" class="view">
+    <section id="gmailView" class="view">
+      <div class="panel gmail-hero">
+        <div>
+          <div class="panel-head"><h2>Gmail Sync</h2><span id="gmailStatusText">Checking connection…</span></div>
+          <p class="muted">Reads info@prairieskyfc.ca, finds player leads, trial replies and Interac payments. Nothing is sent or deleted.</p>
+          <div class="gmail-actions"><a class="primary link-btn" id="connectGmail" href="/auth/google">Connect Gmail</a><button class="primary" id="syncGmail" type="button">Sync last 180 days</button><button class="secondary" id="disconnectGmail" type="button">Disconnect</button></div>
+          <div class="sync-result" id="syncResult"></div>
+        </div>
+      </div>
+      <div class="panel table-wrap gmail-section">
+        <div class="panel-head padded"><h2>Detected leads</h2><span>Review before adding</span></div>
+        <table><thead><tr><th>Player</th><th>Birth year</th><th>Parent</th><th>Status</th><th>Last contact</th><th>Subject</th><th></th></tr></thead><tbody id="gmailLeads"></tbody></table>
+      </div>
+      <div class="panel table-wrap gmail-section">
+        <div class="panel-head padded"><h2>Detected payments</h2><span>$300 = 2 players</span></div>
+        <table><thead><tr><th>Date</th><th>Payer</th><th>Amount</th><th>Players covered</th><th>Confidence</th><th>Subject</th><th></th></tr></thead><tbody id="gmailPayments"></tbody></table>
+      </div>
+    </section>
+
+    <section id="paymentsView" class="view">
       <div class="grid payments-grid">
         <div class="panel">
           <div class="panel-head"><h2>Add payment</h2><span>Manual MVP</span></div>

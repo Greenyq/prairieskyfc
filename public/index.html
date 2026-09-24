@@ -18,6 +18,7 @@
       <button class="nav" data-view="players">Players</button>
       <button class="nav" data-view="leads">Trials & Leads</button>
       <button class="nav" data-view="payments">Payments</button>
+      <button class="nav" data-view="expenses">Expenses</button>
       <button class="nav" data-view="history">Financial History</button>
       <button class="nav" data-view="gmail">Inbox Intelligence</button>
     </nav>
@@ -72,6 +73,31 @@
         <table>
           <thead><tr><th>Player</th><th>Parent</th><th>Stage</th><th>Trial</th><th>Last contact</th><th>Needs action</th></tr></thead>
           <tbody id="leadsTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="expensesView" class="view">
+      <div class="grid payments-grid">
+        <div class="panel">
+          <div class="panel-head"><h2>Add expense</h2><span>Manual</span></div>
+          <form id="expenseForm" class="form">
+            <label>Expense<input id="expenseName" required placeholder="e.g. Dakota field rent"/></label>
+            <label>Amount (CAD)<input id="expenseAmount" required type="number" min="0" step="0.01" placeholder="150"/></label>
+            <label>Date<input id="expenseDate" required type="date"/></label>
+            <button class="primary" type="submit">Record expense</button>
+          </form>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2 id="expenseSummaryTitle">Expenses</h2><span>Imported + manual</span></div>
+          <div class="money" id="expenseSummary"></div>
+          <div class="toolbar expense-filter"><select id="expenseMonthFilter"></select></div>
+        </div>
+      </div>
+      <div class="panel table-wrap">
+        <table>
+          <thead><tr><th>Date / month</th><th>Expense</th><th>Amount</th><th>Source</th></tr></thead>
+          <tbody id="expensesTable"></tbody>
         </table>
       </div>
     </section>

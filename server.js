@@ -342,7 +342,31 @@ app.post("/api/apps-script-sync", (req, res) => {
       if (!external.length) continue;
 
       const combined = msgs.map(m => (m.subject || "") + " " + (m.body || "")).join(" ");
-      const relevant = /soccer|football|academy|training|practice|trial|tryout|son|daughter|player|age|born|register/.test(combined.toLowerCase());
+      const lower = combined.toLowerCase();
+
+      // Drop obvious marketing/newsletters even if they mention soccer/football.
+      const marketingSignals = [
+        "unsubscribe", "view in browser", "shop now", "sale ends", "limited time",
+        "promo code", "new collection", "free shipping", "privacy policy",
+        "manage preferences", "email preferences", "do not reply",
+        "puma", "adidas", "nike", "sport chek", "newsletter"
+      ];
+      const looksMarketing = marketingSignals.some(s => lower.includes(s));
+
+      const hasClubMessage = msgs.some(m =>
+        String(m.fromEmail || "").toLowerCase() === clubEmail
+      );
+
+      const parentSignals = /\b(my son|my daughter|my child|our son|our daughter|age\s*\d{1,2}|born\s+(?:in\s+)?20\d{2}|he is \d{1,2}|she is \d{1,2})\b/i.test(combined);
+      const soccerSignals = /\b(trial|tryout|free trial|practice|training|academy|soccer|football|register|registration|team|player)\b/i.test(combined);
+
+      // Keep a thread when we have actually replied from the club and it is soccer-related,
+      // or when an inbound message clearly looks like a parent/player inquiry.
+      const relevant = !looksMarketing && (
+        (hasClubMessage && soccerSignals) ||
+        (parentSignals && soccerSignals)
+      );
+
       if (!relevant) continue;
 
       const latestExternal = external.slice().sort((a,b)=>Number(b.ts||0)-Number(a.ts||0))[0];

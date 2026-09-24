@@ -708,3 +708,28 @@ if ($("#clearHistory")) {
     $("#historyImportResult").textContent = "Historical import cleared.";
   };
 }
+
+
+if ($("#expenseForm")) {
+  $("#expenseDate").value = new Date().toISOString().slice(0,10);
+  $("#expenseForm").onsubmit = function(e) {
+    e.preventDefault();
+    const date = $("#expenseDate").value;
+    expenses.push({
+      id: crypto.randomUUID(),
+      name: $("#expenseName").value.trim(),
+      amount: Number($("#expenseAmount").value || 0),
+      date: date,
+      month: monthFromDate(date),
+      year: Number(String(date).slice(0,4)),
+      source: "manual"
+    });
+    e.target.reset();
+    $("#expenseDate").value = new Date().toISOString().slice(0,10);
+    save();
+  };
+}
+
+if ($("#expenseMonthFilter")) {
+  $("#expenseMonthFilter").onchange = renderExpenses;
+}

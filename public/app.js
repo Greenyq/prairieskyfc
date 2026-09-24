@@ -1,6 +1,7 @@
 
 const STORAGE_KEY = "psfc_players_v2";
 const PAYMENTS_KEY = "psfc_payments_v1";
+const EXPENSES_KEY = "psfc_expenses_v1";
 
 const seedPlayers = [
   {
@@ -37,6 +38,7 @@ const seedPlayers = [
 
 let players = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || seedPlayers;
 let payments = JSON.parse(localStorage.getItem(PAYMENTS_KEY) || "null") || [];
+let expenses = JSON.parse(localStorage.getItem(EXPENSES_KEY) || "null") || [];
 
 function monthFromDate(dateString) {
   if (!dateString) return "Unknown";
@@ -72,6 +74,7 @@ function esc(v) {
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
   localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
+  localStorage.setItem(EXPENSES_KEY, JSON.stringify(expenses));
   renderAll();
 }
 
@@ -183,6 +186,173 @@ function renderAll() {
   renderPlayers();
   renderLeads();
   renderPayments();
+  renderHistory();
+}
+
+function money(n) {
+  return "$" + Number(n || 0).toLocaleString(undefined, {maximumFractionDigits: 2});
+}
+
+function historyMonthLabel(p) {
+  if (p.year && p.month) return p.month + " " + p.year;
+  if (p.date) {
+    const d = new Date(p.date + "T12:00:00");
+    if (!Number.isNaN(d.getTime())) return d.toLocaleString("en-US", {month:"long", year:"numeric"});
+  }
+  return (p.month || "Unknown");
+}
+
+function historySortKey(p) {
+  if (p.year && p.month) {
+    const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    return Number(p.year) * 100 + months.indexOf(p.month) + 1;
+  }
+  if (p.date) {
+    const d = new Date(p.date + "T12:00:00");
+    return d.getFullYear() * 100 + d.getMonth() + 1;
+  }
+  return 0;
+}
+
+function renderHistory() {
+  if (!$("#historyTable")) return;
+  const histPayments = payments.filter(p => p.source === "history");
+  const histExpenses = expenses.filter(e => e.source === "history");
+
+  const map = new Map();
+  function rowFor(label, key) {
+    if (!map.has(key)) map.set(key, {label, key, income:0, payments:0, expenses:0});
+    return map.get(key);
+  }
+
+  histPayments.forEach(p => {
+    const row = rowFor(historyMonthLabel(p), historySortKey(p));
+    row.income += Number(p.amount || 0);
+    row.payments += 1;
+  });
+  histExpenses.forEach(e => {
+    const row = rowFor(historyMonthLabel(e), historySortKey(e));
+    row.expenses += Number(e.amount || 0);
+  });
+
+  const rows = Array.from(map.values()).sort((a,b)=>b.key-a.key);
+  $("#historyTable").innerHTML = rows.map(r =>
+    '<tr><td><b>' + esc(r.label) + '</b></td><td>' + money(r.income) + '</td><td>' +
+    r.payments + '</td><td>' + money(r.expenses) + '</td><td><b>' + money(r.income-r.expenses) + '</b></td></tr>'
+  ).join("") || '<tr><td colspan="5" class="empty">Import your Prairie Sky Money.xlsx file to build history.</td></tr>';
+
+  const totalIncome = histPayments.reduce((s,p)=>s+Number(p.amount||0),0);
+  const totalExpenses = histExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
+  const uniqueMonths = new Set(histPayments.map(historySortKey).concat(histExpenses.map(historySortKey))).size;
+  $("#historyCards").innerHTML = [
+    ["Historical income", money(totalIncome)],
+    ["Historical expenses", money(totalExpenses)],
+    ["Historical net", money(totalIncome-totalExpenses)],
+    ["Months imported", uniqueMonths]
+  ].map(x=>'<div class="card"><span>'+x[0]+'</span><b>'+x[1]+'</b></div>').join("");
+
+  $("#historyPaymentsTable").innerHTML = histPayments.slice().sort((a,b)=>historySortKey(b)-historySortKey(a)).map(p =>
+    '<tr><td>'+esc(historyMonthLabel(p))+'</td><td>'+esc(p.payer)+'</td><td>'+esc(p.type||"")+'</td><td>'+money(p.amount)+'</td></tr>'
+  ).join("") || '<tr><td colspan="4" class="empty">No historical payments yet.</td></tr>';
+
+  $("#historyExpensesTable").innerHTML = histExpenses.slice().sort((a,b)=>historySortKey(b)-historySortKey(a)).map(e =>
+    '<tr><td>'+esc(historyMonthLabel(e))+'</td><td>'+esc(e.name)+'</td><td>'+money(e.amount)+'</td></tr>'
+  ).join("") || '<tr><td colspan="3" class="empty">No historical expenses yet.</td></tr>';
+}
+
+function parseSheetMonthYear(sheetName) {
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const clean = String(sheetName || "").replace(/[()]/g, " ").replace(/\s+/g," ").trim();
+  const month = months.find(m => clean.toLowerCase().startsWith(m.toLowerCase()));
+  if (!month) return null;
+  const yearMatch = clean.match(/20\d{2}/);
+  let year = yearMatch ? Number(yearMatch[0]) : null;
+  if (!year) {
+    // In this workbook, April–December without a year are 2025.
+    year = 2025;
+  }
+  return {month, year};
+}
+
+function normalizeName(v) {
+  return String(v || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function importHistoricalWorkbook(file) {
+  const result = $("#historyImportResult");
+  if (!window.XLSX) {
+    result.textContent = "Excel parser failed to load. Refresh the page and try again.";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    try {
+      const workbook = XLSX.read(evt.target.result, {type:"array"});
+      let addedPayments = 0;
+      let addedExpenses = 0;
+
+      workbook.SheetNames.forEach(sheetName => {
+        const period = parseSheetMonthYear(sheetName);
+        if (!period) return;
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:null});
+
+        rows.forEach((row, idx) => {
+          if (idx === 0) return;
+
+          const payer = String(row[0] || "").trim();
+          const type = String(row[1] || "").trim();
+          const income = Number(row[2]);
+          if (payer && payer.toLowerCase() !== "total" && Number.isFinite(income) && income > 0) {
+            const duplicate = payments.some(p =>
+              historySortKey(p) === period.year * 100 + ["January","February","March","April","May","June","July","August","September","October","November","December"].indexOf(period.month)+1 &&
+              normalizeName(p.payer) === normalizeName(payer) &&
+              Math.abs(Number(p.amount||0)-income) < 0.001
+            );
+            if (!duplicate) {
+              payments.push({
+                id: crypto.randomUUID(),
+                date: period.year + "-" + String(["January","February","March","April","May","June","July","August","September","October","November","December"].indexOf(period.month)+1).padStart(2,"0") + "-01",
+                payer,
+                type,
+                amount: income,
+                playersCovered: playersCovered(income),
+                month: period.month,
+                year: period.year,
+                source: "history",
+                sourceKey: sheetName + ":income:" + idx
+              });
+              addedPayments++;
+            }
+          }
+
+          const expenseName = String(row[5] || "").trim();
+          const expenseAmount = Number(row[6]);
+          if (expenseName && expenseName.toLowerCase() !== "total:" && expenseName.toLowerCase() !== "total" && Number.isFinite(expenseAmount) && expenseAmount > 0) {
+            const sourceKey = sheetName + ":expense:" + idx;
+            if (!expenses.some(e => e.sourceKey === sourceKey)) {
+              expenses.push({
+                id: crypto.randomUUID(),
+                name: expenseName,
+                amount: expenseAmount,
+                month: period.month,
+                year: period.year,
+                source: "history",
+                sourceKey
+              });
+              addedExpenses++;
+            }
+          }
+        });
+      });
+
+      save();
+      result.textContent = "Imported " + addedPayments + " payments and " + addedExpenses + " expenses. Existing matching records were skipped.";
+    } catch (e) {
+      result.textContent = "Import failed: " + e.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 function openModal(p) {
@@ -220,6 +390,7 @@ document.addEventListener("click", function(e){
       players:["Players","Roster, groups and payment status"],
       leads:["Trials & Leads","Who was invited, who replied and who needs follow-up"],
       payments:["Payments","Track monthly collection and family payments"],
+      history:["Financial History","Two years of Prairie Sky income, expenses and net"],
       gmail:["Inbox Intelligence","Sync leads, replies and Interac payments from Gmail"]
     };
     $("#pageTitle").textContent = titles[nav.dataset.view][0];
@@ -453,3 +624,21 @@ document.addEventListener("click", function(e){
 });
 
 loadGmailStatus();
+
+
+if ($("#historyFile")) {
+  $("#historyFile").addEventListener("change", function(e) {
+    const file = e.target.files && e.target.files[0];
+    if (file) importHistoricalWorkbook(file);
+  });
+}
+
+if ($("#clearHistory")) {
+  $("#clearHistory").onclick = function() {
+    if (!confirm("Remove all records imported from the historical workbook?")) return;
+    payments = payments.filter(p => p.source !== "history");
+    expenses = expenses.filter(e => e.source !== "history");
+    save();
+    $("#historyImportResult").textContent = "Historical import cleared.";
+  };
+}

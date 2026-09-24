@@ -9,7 +9,7 @@ const TOKEN_FILE = "/tmp/psfc-gmail-token.json";
 const APPS_SCRIPT_SYNC_SECRET = process.env.APPS_SCRIPT_SYNC_SECRET || "";
 let latestSync = { ok: true, scanned: 0, leads: [], payments: [], syncedAt: null, source: "apps-script" };
 
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "8mb" }));
 app.use(express.static("public"));
 
 function oauthConfigured() {

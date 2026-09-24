@@ -186,6 +186,7 @@ function renderAll() {
   renderPlayers();
   renderLeads();
   renderPayments();
+  renderExpenses();
   renderHistory();
 }
 
@@ -390,6 +391,7 @@ document.addEventListener("click", function(e){
       players:["Players","Roster, groups and payment status"],
       leads:["Trials & Leads","Who was invited, who replied and who needs follow-up"],
       payments:["Payments","Track monthly collection and family payments"],
+      expenses:["Expenses","Club spending from the workbook and manual entries"],
       history:["Financial History","Two years of Prairie Sky income, expenses and net"],
       gmail:["Inbox Intelligence","Sync leads, replies and Interac payments from Gmail"]
     };

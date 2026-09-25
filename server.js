@@ -1,16 +1,84 @@
 import express from "express";
 import fs from "fs";
 import { google } from "googleapis";
+import pg from "pg";
+import crypto from "node:crypto";
 
 const app = express();
 const port = process.env.PORT || 10000;
 const APP_URL = process.env.APP_URL || "https://prairie-sky-manager.onrender.com";
 const TOKEN_FILE = "/tmp/psfc-gmail-token.json";
 const APPS_SCRIPT_SYNC_SECRET = process.env.APPS_SCRIPT_SYNC_SECRET || "";
+const pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5 }) : null;
+const rosterNames = [
+  "Johny", "Roma", "Zakhar Bilaus", "Leva", "Leo", "Peter", "Nazar Bakalo",
+  "Artem Zaz", "Zakhar Zaz", "Mark", "Tykhon", "Liam", "Timofey Shevchenko",
+  "Tim", "Shashwat", "Sasha Motorin", "Maksym Bakalo", "Lucas", "Seva",
+  "Adil Tawzy", "Artur Budai", "Myroslav", "Ben", "Dania", "Fateh",
+  "Gabriel Kamptoum", "Wail Mehdi", "Zein"
+];
+const roster = rosterNames.map((name) => ({
+  id: crypto.randomUUID(), name, birthYear: "", parent: "", email: "",
+  group: "Unassigned", status: "Joined", trialDate: "", october: "Pending",
+  fee: 150, payment: "Unpaid", notes: "", lastContact: ""
+}));
+let initPromise;
+async function initState() {
+  if (!pool) throw new Error("DATABASE_URL is missing");
+  if (!initPromise) initPromise = (async () => {
+    await pool.query(`CREATE TABLE IF NOT EXISTS club_state (
+      id integer PRIMARY KEY CHECK (id = 1), revision integer NOT NULL DEFAULT 0,
+      players jsonb NOT NULL DEFAULT '[]', payments jsonb NOT NULL DEFAULT '[]',
+      expenses jsonb NOT NULL DEFAULT '[]')`);
+    await pool.query(`INSERT INTO club_state (id, players) VALUES (1, $1)
+      ON CONFLICT (id) DO NOTHING`, [JSON.stringify(roster)]);
+  })().catch(e => { initPromise = null; throw e; });
+  await initPromise;
+}
 let latestSync = { ok: true, scanned: 0, leads: [], payments: [], syncedAt: null, source: "apps-script" };
 
 app.use(express.json({ limit: "8mb" }));
+app.use((req, res, next) => {
+  if (req.path === "/api/health" || req.path === "/api/apps-script-sync") return next();
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password) return res.status(503).send("Set ADMIN_PASSWORD on Render before using the manager.");
+  const encoded = String(req.headers.authorization || "").replace(/^Basic\s+/i, "");
+  let credentials = "";
+  try { credentials = Buffer.from(encoded, "base64").toString("utf8"); } catch {}
+  const received = Buffer.from(credentials);
+  const expected = Buffer.from("admin:" + password);
+  if (received.length !== expected.length || !crypto.timingSafeEqual(received, expected)) {
+    res.set("WWW-Authenticate", 'Basic realm="Prairie Sky Manager"');
+    return res.status(401).send("Sign in to Prairie Sky Manager");
+  }
+  res.set("Cache-Control", "no-store");
+  next();
+});
 app.use(express.static("public"));
+
+app.get("/api/state", async (_req, res) => {
+  try {
+    await initState();
+    const { rows } = await pool.query("SELECT revision, players, payments, expenses FROM club_state WHERE id = 1");
+    res.json(rows[0]);
+  } catch (e) { console.error(e); res.status(503).json({ error: "Database unavailable" }); }
+});
+
+app.put("/api/state", async (req, res) => {
+  try {
+    await initState();
+    const { revision, players, payments, expenses } = req.body || {};
+    if (!Number.isInteger(revision) || ![players, payments, expenses].every(Array.isArray) ||
+        players.length > 10000 || payments.length > 50000 || expenses.length > 50000) {
+      return res.status(400).json({ error: "Invalid club data" });
+    }
+    const { rows } = await pool.query(`UPDATE club_state SET revision = revision + 1,
+      players = $1, payments = $2, expenses = $3 WHERE id = 1 AND revision = $4
+      RETURNING revision`, [JSON.stringify(players), JSON.stringify(payments), JSON.stringify(expenses), revision]);
+    if (!rows.length) return res.status(409).json({ error: "Data changed in another tab. Reload before saving again." });
+    res.json(rows[0]);
+  } catch (e) { console.error(e); res.status(503).json({ error: "Database unavailable" }); }
+});
 
 function oauthConfigured() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);

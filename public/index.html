@@ -27,7 +27,7 @@
 
   <main>
     <header>
-      <div><h1 id="pageTitle">Club Dashboard</h1><p id="pageSub">Your internal academy cockpit</p></div>
+      <div><h1 id="pageTitle">Club Dashboard</h1><p id="pageSub">Your internal academy cockpit</p><small id="saveStatus">Loading club data…</small> <button id="importBrowser" hidden>Import saved browser records</button></div>
       <button class="primary" id="addPlayerBtn">+ Add player</button>
     </header>
 
@@ -50,6 +50,11 @@
     </section>
 
     <section id="playersView" class="view">
+      <div class="panel" style="padding:16px;margin-bottom:16px">
+        <label for="bulkNames">Add several players (one name per line)</label>
+        <textarea id="bulkNames" rows="3" placeholder="One player per line"></textarea>
+        <button class="primary" id="bulkAddPlayers" type="button">Add players</button>
+      </div>
       <div class="toolbar">
         <input id="playerSearch" placeholder="Search player, parent or email"/>
         <select id="groupFilter">

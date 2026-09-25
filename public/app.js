@@ -36,31 +36,21 @@ const seedPlayers = [
   }
 ];
 
-let players = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || seedPlayers;
-let payments = JSON.parse(localStorage.getItem(PAYMENTS_KEY) || "null") || [];
-let expenses = JSON.parse(localStorage.getItem(EXPENSES_KEY) || "null") || [];
+// Keep the old browser records for an explicit one-time import after the server loads.
+const browserPlayers = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || [];
+const browserPayments = JSON.parse(localStorage.getItem(PAYMENTS_KEY) || "null") || [];
+const browserExpenses = JSON.parse(localStorage.getItem(EXPENSES_KEY) || "null") || [];
+let players = [];
+let payments = [];
+let expenses = [];
+let revision = null;
+let saving = Promise.resolve();
 
 function monthFromDate(dateString) {
   if (!dateString) return "Unknown";
   const d = new Date(dateString + "T12:00:00");
   if (Number.isNaN(d.getTime())) return "Unknown";
   return d.toLocaleString("en-US", { month: "long" });
-}
-
-// Migrate Gmail-imported payments that were previously hard-coded as October.
-let migratedPaymentMonths = false;
-payments = payments.map(function(p) {
-  if (p.messageId && p.date) {
-    const correctMonth = monthFromDate(p.date);
-    if (correctMonth !== "Unknown" && p.month !== correctMonth) {
-      migratedPaymentMonths = true;
-      return { ...p, month: correctMonth };
-    }
-  }
-  return p;
-});
-if (migratedPaymentMonths) {
-  localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
 }
 
 function $(s) { return document.querySelector(s); }
@@ -72,10 +62,41 @@ function esc(v) {
 }
 
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
-  localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
-  localStorage.setItem(EXPENSES_KEY, JSON.stringify(expenses));
   renderAll();
+  const snapshot = { players: structuredClone(players), payments: structuredClone(payments), expenses: structuredClone(expenses) };
+  saving = saving.then(async function() {
+    const response = await fetch("/api/state", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...snapshot, revision })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not save club data");
+    revision = data.revision;
+    $("#saveStatus").textContent = "Saved";
+  }).catch(function(error) {
+    $("#saveStatus").textContent = "Save failed: " + error.message + " Reload to recover.";
+    $("#saveStatus").style.color = "#b42318";
+    document.querySelectorAll("button, input, select, textarea").forEach(el => el.disabled = true);
+  });
+  $("#saveStatus").textContent = "Saving…";
+  return saving;
+}
+
+async function loadState() {
+  try {
+    const response = await fetch("/api/state");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not load club data");
+    ({ players, payments, expenses, revision } = data);
+    renderAll();
+    $("#saveStatus").textContent = "Saved on server";
+    if (browserPlayers.length || browserPayments.length || browserExpenses.length) {
+      $("#importBrowser").hidden = false;
+    }
+    document.querySelectorAll("button, input, select, textarea").forEach(el => el.disabled = false);
+  } catch (error) {
+    $("#saveStatus").textContent = "Unable to load data: " + error.message;
+  }
 }
 
 function ageFromYear(y) {
@@ -471,6 +492,20 @@ document.addEventListener("click", function(e){
 });
 
 $("#addPlayerBtn").onclick = function(){ openModal(); };
+$("#bulkAddPlayers").onclick = function() {
+  const names = $("#bulkNames").value.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  let added = 0;
+  for (const name of names) {
+    if (players.some(p => p.name.trim().toLowerCase() === name.toLowerCase())) continue;
+    players.push({ id: crypto.randomUUID(), name, birthYear: "", parent: "", email: "",
+      group: "Unassigned", status: "Joined", trialDate: "", october: "Pending",
+      fee: 150, payment: "Unpaid", notes: "", lastContact: "" });
+    added++;
+  }
+  $("#bulkNames").value = "";
+  if (added) save();
+  else alert("No new players to add.");
+};
 $("#closeModal").onclick = closeModal;
 $("#cancelModal").onclick = closeModal;
 $("#playerSearch").oninput = renderPlayers;
@@ -517,7 +552,31 @@ $("#paymentForm").onsubmit = function(e){
   save();
 };
 
-renderAll();
+document.querySelectorAll("button, input, select, textarea").forEach(el => el.disabled = true);
+loadState();
+
+$("#importBrowser").onclick = async function() {
+  if (!confirm("Import records saved in this browser into the club database? Existing records will be kept.")) return;
+  const byName = new Map(players.map(p => [String(p.name).trim().toLowerCase(), p]));
+  for (const p of browserPlayers) {
+    const match = byName.get(String(p.name).trim().toLowerCase());
+    if (match) Object.assign(match, { ...p, id: match.id });
+    else if (!players.some(x => x.id === p.id)) players.push(p);
+  }
+  for (const p of browserPayments) {
+    if (!payments.some(x => x.id === p.id || (p.messageId && x.messageId === p.messageId))) {
+      payments.push(p.messageId && p.date ? { ...p, month: monthFromDate(p.date) } : p);
+    }
+  }
+  for (const e of browserExpenses) {
+    if (!expenses.some(x => x.id === e.id)) expenses.push(e);
+  }
+  await save();
+  if ($("#saveStatus").textContent === "Saved") {
+    [STORAGE_KEY, PAYMENTS_KEY, EXPENSES_KEY].forEach(key => localStorage.removeItem(key));
+    $("#importBrowser").hidden = true;
+  }
+};
 
 
 async function loadGmailStatus() {
